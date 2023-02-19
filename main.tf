@@ -1,24 +1,8 @@
 # providers
 provider "aws" {
-  region = "${var.region}"
-  profile = "${var.profile}"
+  region  = var.aws_region
+  profile = var.profile
 }
-
-
-# Define the AWS provider
-variable "region" {
-  type     = string
-  nullable = false
-  description = "just the region :)"
-}
-variable "profile" {
-  type     = string
-  nullable = false
-  description = "just the profile"
-  sensitive = true
-}
-
-
 
 # Create an SQS queue
 resource "aws_sqs_queue" "queue" {
@@ -54,7 +38,7 @@ resource "aws_iam_policy" "sqs_policy" {
         Action = [
           "sqs:SendMessage"
         ]
-        Effect = "Allow"
+        Effect   = "Allow"
         Resource = aws_sqs_queue.queue.arn
       }
     ]
@@ -86,11 +70,11 @@ resource "aws_api_gateway_resource" "resource" {
 
 # Create a method for the API Gateway
 resource "aws_api_gateway_method" "method" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.resource.id
+  rest_api_id          = aws_api_gateway_rest_api.api.id
+  resource_id          = aws_api_gateway_resource.resource.id
   request_validator_id = aws_api_gateway_request_validator.validator.id
-  http_method   = "POST"
-  authorization = "NONE"
+  http_method          = "POST"
+  authorization        = "NONE"
   request_parameters = {
     "method.request.header.Content-Type" = true
   }
@@ -99,11 +83,11 @@ resource "aws_api_gateway_method" "method" {
   }
 }
 resource "aws_api_gateway_model" "model" {
-  rest_api_id = aws_api_gateway_rest_api.api.id
-  name = "sqs"
-  description = "models used to map json body"
+  rest_api_id  = aws_api_gateway_rest_api.api.id
+  name         = "sqs"
+  description  = "models used to map json body"
   content_type = "application/json"
-  schema = <<EOF
+  schema       = <<EOF
     {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "title":"Item Schema",
@@ -120,18 +104,18 @@ resource "aws_api_gateway_model" "model" {
 }
 # Create an integration for the API Gateway that connects to the SQS queue
 resource "aws_api_gateway_integration" "integration" {
-  rest_api_id             = aws_api_gateway_rest_api.api.id
-  resource_id             = aws_api_gateway_resource.resource.id
-  http_method             = aws_api_gateway_method.method.http_method
-  credentials             = aws_iam_role.apigateway_role.arn
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.resource.id
+  http_method = aws_api_gateway_method.method.http_method
+  credentials = aws_iam_role.apigateway_role.arn
 
   type                    = "AWS"
   integration_http_method = "POST"
-  uri                     = "arn:aws:apigateway:${var.region}:sqs:path/${aws_sqs_queue.queue.name}"
-  
-  request_templates       = {
-    "application/json"= "Action=SendMessage&MessageBody=$input.body"
-  } 
+  uri                     = "arn:aws:apigateway:${var.aws_region}:sqs:path/${aws_sqs_queue.queue.name}"
+
+  request_templates = {
+    "application/json" = "Action=SendMessage&MessageBody=$input.body"
+  }
   request_parameters = {
     "integration.request.header.Content-Type" = "'application/x-www-form-urlencoded'"
   }
@@ -144,14 +128,16 @@ resource "aws_api_gateway_integration_response" "integration_response" {
   resource_id = aws_api_gateway_resource.resource.id
   http_method = aws_api_gateway_method.method.http_method
   status_code = aws_api_gateway_method_response.response_200.status_code
-
+  depends_on = [
+    aws_api_gateway_integration.integration
+  ]
   # response_templates = {
   #   "application/json" = ""
   # }
 }
 
 # Create method response
-resource "aws_api_gateway_method_response" "response_200"{
+resource "aws_api_gateway_method_response" "response_200" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   resource_id = aws_api_gateway_resource.resource.id
   http_method = aws_api_gateway_method.method.http_method
@@ -183,9 +169,9 @@ resource "aws_api_gateway_deployment" "deployment" {
 
 resource "aws_api_gateway_stage" "stage" {
   deployment_id = aws_api_gateway_deployment.deployment.id
-  rest_api_id = aws_api_gateway_rest_api.api.id
-  stage_name = "test"
-  
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  stage_name    = "test"
+
 }
 
 resource "aws_api_gateway_request_validator" "validator" {
