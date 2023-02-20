@@ -4,6 +4,57 @@ provider "aws" {
   profile = var.profile
 }
 
+provider "archive" {}
+
+# zip lambda code
+data "archive_file" "lambda_code" {
+  type        = "zip"
+  source_dir  = "functions/lambda1/"
+  output_path = "lambda1.zip"
+}
+
+# Create Lambda Role
+resource "aws_iam_role" "iam_for_lambda" {
+  name = "iam_for_lambda"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Create lambda function
+resource "aws_lambda_function" "function" {
+  function_name = "my-lambda"
+
+  filename         = data.archive_file.lambda_code.output_path
+  source_code_hash = data.archive_file.lambda_code.output_base64sha256
+
+  role    = aws_iam_role.iam_for_lambda.arn
+  handler = "app.lambda_handler"
+  runtime = "python3.9"
+
+  environment {
+    variables = {
+      "GREETING" = "hello"
+    }
+  }
+}
+
+resource "aws_lambda_event_source_mapping" "sqs_event" {
+  event_source_arn = aws_sqs_queue.queue.arn
+  function_name = aws_lambda_function.function.arn
+}
+
+
+
 # Create an SQS queue
 resource "aws_sqs_queue" "queue" {
   name = "my-queue"
@@ -171,7 +222,6 @@ resource "aws_api_gateway_stage" "stage" {
   deployment_id = aws_api_gateway_deployment.deployment.id
   rest_api_id   = aws_api_gateway_rest_api.api.id
   stage_name    = "test"
-
 }
 
 resource "aws_api_gateway_request_validator" "validator" {
