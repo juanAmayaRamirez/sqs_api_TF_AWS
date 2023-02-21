@@ -41,6 +41,11 @@ resource "aws_iam_role_policy_attachment" "lambda_sns_role_policy" {
   role       = aws_iam_role.iam_role_for_lambda.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
 }
+## cloudwatch
+resource "aws_iam_role_policy_attachment" "lambda_logs_role_policy" {
+  role       = aws_iam_role.iam_role_for_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
 
 # Create lambda function
 resource "aws_lambda_function" "function" {
@@ -60,6 +65,20 @@ resource "aws_lambda_function" "function" {
   }
 }
 
+# Create SNS sms Topic Module
+
+# main.tf
+
+module "group_sms" {
+  source                 = "./sns_module/"
+  monthly_spend_limit    = 0
+  topic_name             = "my-topic"
+  topic_display_name     = "MyTopic"
+
+  subscriptions = var.sms_subscriber
+  
+}
+
 # Lambda triggers
 resource "aws_lambda_event_source_mapping" "sqs_event" {
   event_source_arn = aws_sqs_queue.queue.arn
@@ -74,7 +93,7 @@ resource "aws_lambda_function_event_invoke_config" "sns_invoke" {
       destination = aws_sqs_queue.dead_letter_queue.arn
     }
     on_success {
-      destination = aws_sns_topic.sns.arn
+      destination = module.group_sms.topic_arn
     }
   }
 }
@@ -90,9 +109,9 @@ resource "aws_sqs_queue" "dead_letter_queue" {
   name = "my-dead-letter-queue"
 }
 
-resource "aws_sns_topic" "sns" {
-  name = "sns_topic"
-}
+# resource "aws_sns_topic" "sns" {
+#   name = "sns_topic"
+# }
 
 # Create Apigateway Role
 resource "aws_iam_role" "apigateway_role" {
