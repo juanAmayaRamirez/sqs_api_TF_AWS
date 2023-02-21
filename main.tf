@@ -14,8 +14,8 @@ data "archive_file" "lambda_code" {
 }
 
 # Create Lambda Role
-resource "aws_iam_role" "iam_for_lambda" {
-  name = "iam_for_lambda"
+resource "aws_iam_role" "iam_role_for_lambda" {
+  name = "iam_role_for_lambda"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -30,6 +30,18 @@ resource "aws_iam_role" "iam_for_lambda" {
   })
 }
 
+# add policy attatchment 
+## sqs
+resource "aws_iam_role_policy_attachment" "lambda_sqs_role_policy" {
+  role       = aws_iam_role.iam_role_for_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+}
+## sns
+resource "aws_iam_role_policy_attachment" "lambda_sns_role_policy" {
+  role       = aws_iam_role.iam_role_for_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+}
+
 # Create lambda function
 resource "aws_lambda_function" "function" {
   function_name = "my-lambda"
@@ -37,7 +49,7 @@ resource "aws_lambda_function" "function" {
   filename         = data.archive_file.lambda_code.output_path
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
 
-  role    = aws_iam_role.iam_for_lambda.arn
+  role    = aws_iam_role.iam_role_for_lambda.arn
   handler = "app.lambda_handler"
   runtime = "python3.9"
 
@@ -48,16 +60,38 @@ resource "aws_lambda_function" "function" {
   }
 }
 
+# Lambda triggers
 resource "aws_lambda_event_source_mapping" "sqs_event" {
   event_source_arn = aws_sqs_queue.queue.arn
-  function_name = aws_lambda_function.function.arn
+  function_name    = aws_lambda_function.function.arn
 }
 
-
+# lambda destinations
+resource "aws_lambda_function_event_invoke_config" "sns_invoke" {
+  function_name = aws_lambda_function.function.function_name
+  destination_config {
+    on_failure {
+      destination = aws_sqs_queue.dead_letter_queue.arn
+    }
+    on_success {
+      destination = aws_sns_topic.sns.arn
+    }
+  }
+}
 
 # Create an SQS queue
 resource "aws_sqs_queue" "queue" {
-  name = "my-queue"
+  name                      = "my-queue"
+  message_retention_seconds = 120
+  redrive_policy            = "{\"deadLetterTargetArn\":\"${aws_sqs_queue.dead_letter_queue.arn}\",\"maxReceiveCount\":4}"
+}
+
+resource "aws_sqs_queue" "dead_letter_queue" {
+  name = "my-dead-letter-queue"
+}
+
+resource "aws_sns_topic" "sns" {
+  name = "sns_topic"
 }
 
 # Create Apigateway Role
