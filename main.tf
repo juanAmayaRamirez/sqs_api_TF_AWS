@@ -1,4 +1,8 @@
 # providers
+terraform {
+  backend "s3" {}
+}
+
 provider "aws" {
   region  = var.aws_region
   profile = var.profile
@@ -49,7 +53,7 @@ resource "aws_iam_role_policy_attachment" "lambda_logs_role_policy" {
 
 # Create lambda function
 resource "aws_lambda_function" "function" {
-  function_name = "my-lambda"
+  function_name = "${var.env_name}-my-lambda"
 
   filename         = data.archive_file.lambda_code.output_path
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
@@ -70,13 +74,15 @@ resource "aws_lambda_function" "function" {
 # main.tf
 
 module "group_sms" {
-  source                 = "./sns_module/"
-  monthly_spend_limit    = 0
-  topic_name             = "my-topic"
-  topic_display_name     = "MyTopic"
+  source              = "./sns_module/"
+  monthly_spend_limit = 0
+  topic_name          = "${var.env_name}-my-topic"
+  topic_display_name  = "${var.env_name}MyTopic"
+  policy_name         = "${var.env_name}-group-sms-publish"
+  role_name           = "${var.env_name}-SNSSuccessFeedback"
 
   subscriptions = var.sms_subscriber
-  
+
 }
 
 # Lambda triggers
@@ -100,13 +106,13 @@ resource "aws_lambda_function_event_invoke_config" "sns_invoke" {
 
 # Create an SQS queue
 resource "aws_sqs_queue" "queue" {
-  name                      = "my-queue"
+  name                      = "${var.env_name}-my-queue"
   message_retention_seconds = 120
   redrive_policy            = "{\"deadLetterTargetArn\":\"${aws_sqs_queue.dead_letter_queue.arn}\",\"maxReceiveCount\":4}"
 }
 
 resource "aws_sqs_queue" "dead_letter_queue" {
-  name = "my-dead-letter-queue"
+  name = "${var.env_name}-my-dead-letter-queue"
 }
 
 # resource "aws_sns_topic" "sns" {
@@ -115,7 +121,7 @@ resource "aws_sqs_queue" "dead_letter_queue" {
 
 # Create Apigateway Role
 resource "aws_iam_role" "apigateway_role" {
-  name = "apigateway-sqs-role"
+  name = "${var.env_name}-apigateway-sqs-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -133,7 +139,7 @@ resource "aws_iam_role" "apigateway_role" {
 
 # Create  Apigateway Policy
 resource "aws_iam_policy" "sqs_policy" {
-  name = "sqs-policy"
+  name = "${var.env_name}-sqs-policy"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -157,7 +163,7 @@ resource "aws_iam_role_policy_attachment" "apigateway_policy_attachment" {
 
 # Create the API Gateway
 resource "aws_api_gateway_rest_api" "api" {
-  name        = "my-api"
+  name        = "${var.env_name}-my-api"
   description = "My API Gateway"
 
   endpoint_configuration {

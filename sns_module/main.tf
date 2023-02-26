@@ -2,16 +2,7 @@ locals {
   display_name = coalesce(var.topic_display_name, var.topic_name)
 }
 # # iam trusted relationships
-# data "aws_iam_policy_document" "assume_role" {
-#   statement {
-#     actions = ["sts:AssumeRole"]
 
-#     principals {
-#       type        = "Service"
-#       identifiers = ["sns.amazonaws.com"]
-#     }
-#   }
-# }
 
 # # IAM logs write policy 
 # data "aws_iam_policy_document" "delivery_status_logs_iam_policy" {
@@ -92,11 +83,7 @@ locals {
 
 
 # # iam role
-# resource "aws_iam_role" "delivery_status_role" {
-#   description        = "Allow AWS to publish SMS delivery status logs"
-#   name               = var.role_name
-#   assume_role_policy = data.aws_iam_policy_document.assume_role.json
-# }
+
 
 # # Bucket
 # resource "aws_s3_bucket" "delivery_status_bucket" {
@@ -128,19 +115,37 @@ locals {
 #   usage_report_s3_bucket                = aws_s3_bucket.delivery_status_bucket.bucket
 # }
 
-# policy to publish to this topic
-data "aws_iam_policy_document" "publish" {
-  statement {
-    actions   = ["sns:Publish"]
-    resources = [aws_sns_topic.topic.arn]
-  }
-}
-resource "aws_iam_policy" "publish" {
-  name        = var.policy_name
-  path        = var.policy_path
-  description = "Allow publishing to Group SMS SNS Topic"
-  policy      = data.aws_iam_policy_document.publish.json
-}
+# # policy to publish to this topic
+# data "aws_iam_policy_document" "publish" {
+#   statement {
+#     actions   = ["sns:Publish"]
+#     resources = [aws_sns_topic.topic.arn]
+#   }
+# }
+# resource "aws_iam_policy" "publish" {
+#   name        = var.policy_name
+#   path        = var.policy_path
+#   description = "Allow publishing to Group SMS SNS Topic"
+#   policy      = data.aws_iam_policy_document.publish.json
+# }
+
+# resource "aws_iam_role" "delivery_status_role" {
+#   description        = "Allow AWS to publish SMS delivery status logs"
+#   name               = var.role_name
+#   assume_role_policy = data.aws_iam_policy_document.assume_role.json
+# }
+
+# data "aws_iam_policy_document" "assume_role" {
+#   statement {
+#     actions = ["sts:AssumeRole"]
+
+#     principals {
+#       type        = "Service"
+#       identifiers = ["sns.amazonaws.com"]
+#     }
+#   }
+# }
+
 
 # sns topic
 resource "aws_sns_topic" "topic" {

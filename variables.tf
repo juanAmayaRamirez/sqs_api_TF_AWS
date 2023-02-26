@@ -17,3 +17,6 @@ variable "sms_subscriber" {
   description = "List of telephone numbers to subscribe to SNS. the format should be [\"+XXXXXXXX\",\"+XXXXXXXX\",...] "
   sensitive   = true
 }
+variable "env_name" {
+  description = "The name of the workspace to use for this deployment."
+}
